@@ -5,3 +5,4 @@ __pycache__/
 vector_store/index.faiss
 vector_store/chunks.json
 .DS_Store
+.env.luffy
