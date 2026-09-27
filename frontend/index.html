@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shanks — Amizone Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+    <aside class="sidebar">
+      <img class="mascot" src="assets/shanks.jpg" alt="shanks" />
+      <h1>Shanks</h1>
+      <p class="tagline">Your Amizone assistant</p>
+      <p class="blurb">Ask about attendance, exams, fees, timetables, or anything else about
+        college life. Answered from the official knowledge base first, live web results
+        when it's something outside that.</p>
+      <div class="legend">
+        <span class="badge badge-kb">Knowledge base</span>
+        <span class="badge badge-web">Web</span>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <div id="messages" class="messages"></div>
+
+      <form id="chat-form" class="composer" autocomplete="off">
+        <input id="chat-input" type="text" placeholder="Ask Shanks something..." required />
+        <button type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
