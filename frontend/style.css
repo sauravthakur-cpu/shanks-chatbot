@@ -179,3 +179,57 @@ h1, .tagline {
   .messages { padding: 20px; }
   .composer { padding: 14px 20px 20px; }
 }
+/* ---------- Dark blue + black theme ---------- */
+body {
+  background: #05070d;
+  color: #e6ecf5;
+}
+
+#messages {
+  background: #070b14;
+}
+
+.msg.user {
+  background: #1d4ed8;
+  /* strong blue */
+  color: #ffffff;
+}
+
+.msg.bot {
+  background: #0f1a2e;
+  /* dark navy */
+  color: #e6ecf5;
+  border: 1px solid #1e3a6e;
+}
+
+.badge-kb {
+  background: #1e3a8a;
+  color: #dbeafe;
+}
+
+.badge-web {
+  background: #111827;
+  color: #93c5fd;
+  border: 1px solid #1e3a6e;
+}
+
+#chat-form {
+  background: #05070d;
+  border-top: 1px solid #1e3a6e;
+}
+
+#chat-input {
+  background: #0b1220;
+  color: #e6ecf5;
+  border: 1px solid #1e3a6e;
+}
+
+button {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+}
+
+button:hover {
+  background: #2563eb;
+}

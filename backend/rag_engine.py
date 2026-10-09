@@ -15,11 +15,13 @@ it isn't.
 """
 
 import json
+from collections import OrderedDict
 from pathlib import Path
 
 import faiss
 import numpy as np
 import requests
+import torch
 from sentence_transformers import SentenceTransformer
 
 import config
@@ -46,6 +48,7 @@ official college knowledge base, since it may be less precise for Amizone-specif
 
 class RAGEngine:
     def __init__(self):
+        torch.set_num_threads(config.TORCH_THREADS)
         print("Loading embedding model...")
         self.embedder = SentenceTransformer(config.EMBEDDING_MODEL_NAME)
 
@@ -63,6 +66,7 @@ class RAGEngine:
             self.chunks = json.load(f)
 
         self.llm_client = self._init_llm_client()
+        self._cache = OrderedDict()
 
     def _init_llm_client(self):
         if config.LLM_PROVIDER == "ollama":
@@ -120,7 +124,13 @@ class RAGEngine:
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": user_message},
                     ],
-                    "stream": False,
+                                        "stream": False,
+                    "keep_alive": config.OLLAMA_KEEP_ALIVE,
+                    "options": {
+                        "num_ctx": config.OLLAMA_NUM_CTX,
+                        "num_predict": config.OLLAMA_NUM_PREDICT,
+                        "temperature": config.OLLAMA_TEMPERATURE,
+                    },
                 },
                 timeout=120,
             )
@@ -148,6 +158,18 @@ class RAGEngine:
             return response.choices[0].message.content
 
     def answer(self, question: str) -> dict:
+        key = " ".join(question.lower().split())
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        result = self._answer_uncached(question)
+        if result["source"] != "none":
+            self._cache[key] = result
+            if len(self._cache) > config.CACHE_SIZE:
+                self._cache.popitem(last=False)
+        return result
+
+    def _answer_uncached(self, question: str) -> dict:
         kb_results = self.retrieve(question)
         best_score = kb_results[0]["score"] if kb_results else 0.0
 
