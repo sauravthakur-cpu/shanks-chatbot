@@ -1,39 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Shanks — Amizone Assistant</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css" />
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--tx:#1b2a4a;--dim:#5b6785;--navy:#1c3f94;--gold:#e8a33d;--bd:#dfe5f0;--kb:#2e9e44;--web:#d9455f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1424;--card:#172038;--tx:#e6ebf7;--dim:#9aa6c4;--navy:#13245a;--bd:#2a3556}}
+:root[data-theme="dark"]{--bg:#0e1424;--card:#172038;--tx:#e6ebf7;--dim:#9aa6c4;--navy:#13245a;--bd:#2a3556}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{display:grid;grid-template-columns:270px 1fr;height:100%}
+.side{background:var(--navy);color:#c9d3ee;padding:26px 22px;display:flex;flex-direction:column;gap:10px}
+.av{width:84px;height:84px;border-radius:18px;background:linear-gradient(135deg,var(--gold),#c97f12);display:grid;place-items:center;font-size:40px;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover}
+.side h1{margin:6px 0 0;color:var(--gold);font-size:28px}.side p{margin:0;font-size:13.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:rgba(255,255,255,.1);padding:4px 10px;border-radius:99px;width:fit-content}
+.pill i{width:8px;height:8px;border-radius:50%;background:#aaa}.pill.live i{background:#4ade80}.pill.demo i{background:var(--gold)}
+.sb{background:rgba(255,255,255,.1);color:#fff;border:0;border-radius:10px;padding:9px 12px;cursor:pointer;text-align:left;font:inherit;font-size:13.5px}
+.sb:hover{background:rgba(255,255,255,.2)}.sp{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:#fff;padding:2px 9px;border-radius:99px;margin-bottom:6px}
+.badge.kb{background:var(--kb)}.badge.web{background:var(--web)}
+main{display:flex;flex-direction:column;min-height:0}
+#msgs{flex:1;overflow-y:auto;padding:22px clamp(14px,4vw,48px);display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.m{max-width:min(720px,88%);padding:11px 15px;border-radius:16px;animation:in .25s ease both;overflow-wrap:anywhere}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+.m.bot{background:var(--card);border:1px solid var(--bd);border-bottom-left-radius:4px;align-self:flex-start}
+.m.user{background:var(--gold);color:#1b2a4a;align-self:flex-end;border-bottom-right-radius:4px}
+.m p{margin:0 0 6px}.m p:last-child{margin:0}.m ul{margin:4px 0 6px;padding-left:20px}
+.meta{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--dim);margin-top:8px}
+.meta:empty{display:none}.meta a{color:var(--navy)}.lnk{background:0;border:0;color:var(--dim);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+details div{padding:2px 0;font-size:12px}summary{cursor:pointer}
+.typing{display:flex;gap:5px;padding:14px 16px}.typing i{width:8px;height:8px;border-radius:50%;background:var(--dim);animation:b 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}@keyframes b{50%{transform:translateY(-5px);opacity:.4}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+.chip:hover{border-color:var(--gold);transform:translateY(-1px)}
+form{display:flex;gap:10px;padding:12px clamp(14px,4vw,48px) 16px;align-items:flex-end}
+textarea{flex:1;resize:none;max-height:140px;border:1.5px solid var(--bd);background:var(--card);color:var(--tx);border-radius:14px;padding:11px 14px;font:inherit;outline:0}
+textarea:focus{border-color:var(--gold)}
+#go{background:var(--gold);color:#1b2a4a;border:0;border-radius:14px;padding:11px 20px;font:inherit;font-weight:700;cursor:pointer;min-width:76px}
+#go.stop{background:var(--web);color:#fff}
+@media(max-width:760px){.app{grid-template-columns:1fr;grid-template-rows:auto 1fr}.side{flex-direction:row;align-items:center;padding:10px 14px;flex-wrap:wrap}
+.side p,.sp .badge{display:none}.av{width:40px;height:40px;font-size:22px;border-radius:10px}.side h1{font-size:20px;margin:0}.sp{margin:0 0 0 auto;flex-direction:row}.m{max-width:94%}}
+</style>
 </head>
 <body>
+<div class="app">
+<aside class="side">
+ <div class="av"><img src="assets/shanks.jpg" alt="" onerror="this.remove();this.parentNode.textContent='⚔️'"></div>
+ <h1>Shanks</h1><p>Your Amizone assistant</p>
+ <span class="pill" id="pill"><i></i><b>Connecting…</b></span>
+ <p>Answers from the official knowledge base first, live web results when it's something outside that.</p>
+ <div class="sp"><span><span class="badge kb">Knowledge base</span> <span class="badge web">Web</span></span>
+  <button class="sb" id="nw">＋ New chat</button><button class="sb" id="th">◐ Theme</button></div>
+</aside>
+<main>
+ <div id="msgs" aria-live="polite"></div>
+ <form id="f"><textarea id="in" rows="1" placeholder="Ask Shanks something… (Enter to send)" maxlength="500"></textarea><button id="go" type="submit">Send</button></form>
+</main>
+</div>
+<script>
+const KB=[
+{t:"Attendance requirement",k:"attendance percentage minimum eligible exam 75 criteria",x:"You need at least **75% attendance** to be eligible for end-semester exams. Attendance is calculated per subject, so check it regularly on Amizone."},
+{t:"Attendance condonation",k:"condonation medical certificate exemption b-category 70 shortage detained",x:"With a valid medical certificate or approved B-category exemption you may sit exams with **70% attendance**, subject to approval. Shortage beyond that means you are **detained** for that semester's exams."},
+{t:"Exam attempts",k:"attempt attempts subject year",x:"Students get **one attempt per subject per year**."},
+{t:"Revaluation",k:"revaluation reevaluation recheck answer sheet fee 500 marks",x:"You can apply for revaluation of answer sheets for **₹500 per subject**, within the window announced after results are declared."},
+{t:"Backlog rules",k:"backlog fail failed clear clearance fee 1000 debarred detained",x:"A backlog (from failing or being detained for attendance) must be cleared **the following year**, with a clearance fee of **₹1000 per subject**."},
+{t:"Unfair means (UFM)",k:"unfair means malpractice cheating ufm punishment",x:"Using unfair means in exams leads to disciplinary action as per university policy."},
+{t:"Hall ticket / admit card",k:"hall ticket admit card issue dues",x:"The hall ticket is issued only once your **attendance and fee dues are cleared**."},
+{t:"Fee payment",k:"fee fees pay payment due late penalty receipt tuition amizone",x:"Pay fees on the **Amizone** portal (amizone.net). Receipts and dues are under the **Fee** section. Late payment attracts a penalty notified each semester on the portal or notice board."},
+{t:"Login issues",k:"login password forgot locked account sign enrollment",x:"Log in with your enrollment number and registered password. Use **Forgot Password** on the login page, or contact the admission office if the account is locked."},
+{t:"Timetable",k:"timetable schedule class timing",x:"Your timetable is under the **Timetable** section after logging into Amizone."},
+{t:"Results",k:"result results marks grade missing incorrect declared",x:"Results appear under the **Examination** section once declared. If a result looks wrong or is missing, contact the Examination Department."},
+{t:"Admission Office (Block A)",k:"admission office block contact phone email number call fee timetable penalty",x:"For fee, timetable or penalty queries:\n- Phone: 7303-399-399\n- Email: admissions@ggn.amity.edu"},
+{t:"Department Office",k:"department office contact phone attendance result number call",x:"For attendance or result queries contact your own department:\n- Phone: 0124-2337015 / 0124-2337016"},
+{t:"General Campus Office",k:"general campus office contact phone email number",x:"- Phone: 0124-3225651\n- Email: info@ggn.amity.edu"},
+{t:"Lost ID card",k:"id card lost reissue duplicate",x:"Report the loss to the Admission Office (Block A) with a written application. A duplicate ID is issued for a nominal fee."},
+{t:"Grading system",k:"grading grade cgpa relative marks internal",x:"Amity uses **relative grading** based on CGPA, evaluated per semester from internal assessments and end-semester exams."},
+{t:"Transcript / bonafide",k:"transcript bonafide certificate letter",x:"Apply on Amizone under **Certificate Requests** or at the Admission Office (Block A). Processing usually takes a few working days."},
+{t:"Hostel",k:"hostel accommodation room stay",x:"Contact the Hostel/Accommodation Office (separate from academic admissions). Allotment is typically at the start of each academic year, based on availability."},
+{t:"Clubs and societies",k:"club clubs society societies join registration",x:"Registrations open at the start of each semester. Check Amizone notices or notice boards for sign-up links."},
+{t:"Missed internal / quiz",k:"missed internal assessment quiz makeup absent",x:"Contact your subject faculty with a valid reason (e.g. medical certificate). Make-up assessments are at the faculty's discretion."},
+{t:"Complaints",k:"complaint complain faculty grievance raise",x:"Raise complaints through the Department Office or the Dean's office, depending on severity."}];
+const STOP=new Set("the a an of to is are for in on and or how what can do does i my me you your about get when where who with it this that be should".split(" "));
+const tok=s=>(s.toLowerCase().match(/[a-z0-9₹]+/g)||[]).filter(w=>!STOP.has(w)).map(w=>w.replace(/(ing|ed|s)$/,""));
+KB.forEach(e=>{e.a=new Set(tok(e.t+" "+e.k));e.b=new Set(tok(e.x))});
+function retrieve(q){const qt=tok(q);const r=KB.map(e=>({t:e.t,x:e.x,s:qt.reduce((n,w)=>n+(e.a.has(w)?2:0)+(e.b.has(w)?1:0),0)})).filter(e=>e.s>=2).sort((a,b)=>b.s-a.s);return r.filter((e,i)=>i<2&&e.s>=r[0].s*.7)}
 
-  <div class="app">
-    <aside class="sidebar">
-      <img class="mascot" src="assets/shanks.jpg" alt="shanks" />
-      <h1>Shanks</h1>
-      <p class="tagline">Your Amizone assistant</p>
-      <p class="blurb">Ask about attendance, exams, fees, timetables, or anything else about
-        college life. Answered from the official knowledge base first, live web results
-        when it's something outside that.</p>
-      <div class="legend">
-        <span class="badge badge-kb">Knowledge base</span>
-        <span class="badge badge-web">Web</span>
-      </div>
-    </aside>
+const $=s=>document.querySelector(s),M=$("#msgs"),I=$("#in"),B=$("#go"),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const SRC={knowledge_base:["Knowledge base","kb"],web:["Web","web"],none:["No source found","web"]};
+const CHIPS=["What is the minimum attendance?","How much is the backlog clearance fee?","How do I get my hall ticket?","Admission office contact","How do I join a club?"];
+let live=false,busy=false,ctl=null,hist=[];
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function md(s){const o=[];let ul=0;for(const l of esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").split("\n")){const m=l.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
+ if(m){if(!ul){o.push("<ul>");ul=1}o.push("<li>"+m[1]+"</li>")}else{if(ul){o.push("</ul>");ul=0}if(l.trim())o.push("<p>"+l+"</p>")}}
+ if(ul)o.push("</ul>");return o.join("")}
+const down=()=>{M.scrollTop=M.scrollHeight};
+function bubble(c,h){const d=document.createElement("div");d.className="m "+c;if(h!=null)d.innerHTML=h;M.appendChild(d);down();return d}
+function shell(src){return bubble("bot",(src?`<span class="badge ${SRC[src][1]}">${SRC[src][0]}</span>`:"")+'<div class="t"></div><div class="meta"></div>')}
+function meta(d,text,m,ms){const mt=d.querySelector(".meta"),src=x=>/^https?:/.test(x.source)?`<a href="${esc(x.source)}" target="_blank" rel="noopener">${esc(x.title||x.source)}</a>`:esc(x.source)+(x.score?` · ${x.score}`:"");
+ mt.innerHTML=(ms?`<span>${(ms/1000).toFixed(1)}s</span>`:"")+'<button class="lnk">Copy</button>'+(m&&m.length?`<details><summary>Sources (${m.length})</summary>${m.map(x=>"<div>"+src(x)+"</div>").join("")}</details>`:"");
+ const b=mt.querySelector("button");b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(text);b.textContent="Copied ✓";setTimeout(()=>b.textContent="Copy",1200)}}
+function save(){try{localStorage.setItem("shanks-h",JSON.stringify(hist.slice(-40)))}catch(e){}}
+function welcome(){const d=bubble("bot","<p>Hey, I'm <b>Shanks</b>! Ask me anything about Amizone — attendance, exams, fees, contacts or general college stuff.</p>");
+ const c=document.createElement("div");c.className="chips";CHIPS.forEach(q=>{const b=document.createElement("button");b.className="chip";b.textContent=q;b.onclick=()=>ask(q);c.appendChild(b)});d.appendChild(c)}
 
-    <main class="chat-panel">
-      <div id="messages" class="messages"></div>
+async function stream(q,cb){const r=await fetch("/api/chat/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:q}),signal:ctl.signal});
+ if(!r.ok)throw new Error(r.status);const rd=r.body.getReader(),dc=new TextDecoder();let buf="";
+ for(;;){const{value,done}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});const ls=buf.split("\n");buf=ls.pop();ls.forEach(l=>l.trim()&&cb(JSON.parse(l)))}}
+async function typeOut(cb,s){for(const w of s.match(/\S+\s*/g)){if(ctl.signal.aborted)return;cb({type:"token",text:w});await sleep(16)}}
+async function demo(q,cb){await sleep(300);const r=retrieve(q);
+ if(!r.length){cb({type:"meta",source:"none",matches:[]});await typeOut(cb,"I couldn't find that in the Amizone knowledge base. (Demo mode has no web fallback — your live backend would search the web here.) Try attendance, backlog fee, revaluation, hall ticket, contacts or hostel.")}
+ else{cb({type:"meta",source:"knowledge_base",matches:r.map(e=>({source:e.t,score:e.s}))});await typeOut(cb,r.map(e=>`**${e.t}**\n${e.x}`).join("\n\n"))}
+ cb({type:"done"})}
 
-      <form id="chat-form" class="composer" autocomplete="off">
-        <input id="chat-input" type="text" placeholder="Ask Shanks something..." required />
-        <button type="submit">Send</button>
-      </form>
-    </main>
-  </div>
+async function ask(q){q=q.trim();if(!q||busy)return;busy=true;B.textContent="Stop";B.classList.add("stop");
+ const w=M.querySelector(".chips");if(w)w.remove();
+ bubble("user",esc(q));hist.push({r:"u",t:q});const t0=performance.now(),ty=bubble("bot typing","<i></i><i></i><i></i>");
+ let d=null,text="",src="",mt=[],fin=0;ctl=new AbortController();
+ const done=()=>{if(fin||!d)return;fin=1;meta(d,text,mt,performance.now()-t0);hist.push({r:"b",t:text,s:src,m:mt});save()};
+ const on=e=>{if(e.type==="meta"){ty.remove();src=e.source;mt=e.matches||[];d=shell(src)}
+  else if(e.type==="token"&&d){text+=e.text;d.querySelector(".t").innerHTML=md(text);down()}else if(e.type==="done")done()};
+ try{await(live?stream(q,on):demo(q,on))}
+ catch(e){if(e.name!=="AbortError"){ty.remove();if(!d)d=shell("none");text+=(text?"\n\n":"")+"Couldn't reach the backend. Is the server running and Ollama open?";d.querySelector(".t").innerHTML=md(text)}}
+ ty.remove();done();busy=false;B.textContent="Send";B.classList.remove("stop");I.focus()}
 
-  <script src="script.js"></script>
+$("#f").onsubmit=e=>{e.preventDefault();if(busy){ctl&&ctl.abort();return}const v=I.value;I.value="";I.style.height="auto";ask(v)};
+I.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#f").requestSubmit()}};
+I.oninput=()=>{I.style.height="auto";I.style.height=Math.min(I.scrollHeight,140)+"px"};
+$("#nw").onclick=()=>{if(busy&&ctl)ctl.abort();hist=[];save();M.innerHTML="";welcome()};
+$("#th").onclick=()=>{const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;r.dataset.theme=dark?"light":"dark"};
+(async()=>{try{const r=await fetch("/api/health",{signal:AbortSignal.timeout(1500)});live=(await r.json()).status==="ok"}catch(e){}
+ const p=$("#pill");p.className="pill "+(live?"live":"demo");p.querySelector("b").textContent=live?"Live · backend connected":"Demo mode · runs in browser";
+ let h=[];try{h=JSON.parse(localStorage.getItem("shanks-h")||"[]")}catch(e){}
+ welcome();h.forEach(x=>{hist.push(x);if(x.r==="u")bubble("user",esc(x.t));else{const d=shell(x.s);d.querySelector(".t").innerHTML=md(x.t);meta(d,x.t,x.m,0)}})})();
+</script>
 </body>
 </html>

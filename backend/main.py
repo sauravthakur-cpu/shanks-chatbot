@@ -6,8 +6,12 @@ Entry point. Run with:
 from the project root (with your virtual environment active).
 """
 
+import json
+import threading
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -31,6 +35,8 @@ engine: RAGEngine | None = None
 def load_engine():
     global engine
     engine = RAGEngine()
+    # Warm up in the background so the server starts at once but the first question is still fast.
+    threading.Thread(target=engine.warm_up, daemon=True).start()
     print("Shanks is ready.")
 
 
@@ -52,6 +58,22 @@ def chat(req: ChatRequest):
         raise HTTPException(status_code=503, detail="Engine still starting up, try again shortly")
     result = engine.answer(req.message.strip())
     return result
+
+
+@app.post("/api/chat/stream")
+def chat_stream(req: ChatRequest):
+    message = req.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Empty message")
+    if engine is None:
+        raise HTTPException(status_code=503, detail="Engine still starting up, try again shortly")
+
+    def event_lines():
+        # One JSON object per line (NDJSON) -- the browser reads them as they arrive.
+        for event in engine.answer_stream(message):
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(event_lines(), media_type="application/x-ndjson")
 
 
 @app.get("/api/health")

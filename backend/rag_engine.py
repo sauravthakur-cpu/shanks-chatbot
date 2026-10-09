@@ -15,8 +15,12 @@ it isn't.
 """
 
 import json
+import os
+import re
+import time
 from collections import OrderedDict
-from pathlib import Path
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import faiss
 import numpy as np
@@ -27,28 +31,33 @@ from sentence_transformers import SentenceTransformer
 import config
 from web_search import search_web
 
-SYSTEM_PROMPT = """You are Shanks, a helpful, friendly assistant for college students, \
-themed as a small, confident swordsman-adventurer mascot. You help students of Amizone \
-(the college) with questions about their courses, portal, timetable, exams, fees, clubs, \
-and general campus life, and you can also answer general questions using web results \
-you're given.
+# Stop PyTorch grabbing every CPU core -- leaves room for Ollama and the rest of the laptop.
+torch.set_num_threads(config.TORCH_THREADS)
 
-Rules you always follow:
-- Answer ONLY using the CONTEXT provided below. Do not use outside knowledge that \
-contradicts it, and do not invent facts, numbers, deadlines, or policies that aren't in \
-the context.
-- If the context is genuinely insufficient to answer, say so clearly and suggest what the \
-student should check or who to contact -- never guess.
-- Be concise, direct, and warm. No filler, no fake enthusiasm, no invented testimonials \
-or reviews.
-- If you're using web results, make clear the information comes from the web, not the \
-official college knowledge base, since it may be less precise for Amizone-specific details.
-"""
+SYSTEM_PROMPT = """You are Shanks, a cheerful swordsman-adventurer mascot who helps students of \
+Amizone (Amity University). Be warm and upbeat (at most one emoji) but precise. Answer ONLY from \
+the CONTEXT given. Never invent facts, numbers, deadlines or policies. If the context is not \
+enough, say so and suggest who to contact. Be concise: at most 4 short sentences or 5 bullet \
+points. If the context comes from the web, say so, since it may be less precise for \
+Amizone-specific details."""
+
+_HELLO = re.compile(r"^(hi|hello|hey|yo|hola|namaste|good (morning|afternoon|evening))\W*$", re.I)
+_THANKS = re.compile(r"^(thanks|thank you|thx|ty)\b", re.I)
+
+
+def small_talk(text: str):
+    """Instant replies for greetings/thanks -- no search, no LLM, no waiting."""
+    t = text.strip()
+    if _HELLO.match(t):
+        return ("Hey there, I'm Shanks! \u2694\ufe0f Ask me about attendance, exams, backlog or fees, "
+                "hall tickets, contacts or hostel.")
+    if _THANKS.match(t):
+        return "Anytime! Shout if you need anything else. \u2694\ufe0f"
+    return None
 
 
 class RAGEngine:
     def __init__(self):
-        torch.set_num_threads(config.TORCH_THREADS)
         print("Loading embedding model...")
         self.embedder = SentenceTransformer(config.EMBEDDING_MODEL_NAME)
 
@@ -65,8 +74,9 @@ class RAGEngine:
         with open(chunks_path, "r", encoding="utf-8") as f:
             self.chunks = json.load(f)
 
+        self.session = requests.Session()  # reuses the connection to Ollama between questions
+        self.cache = OrderedDict()         # question -> answer, for instant repeat answers
         self.llm_client = self._init_llm_client()
-        self._cache = OrderedDict()
 
     def _init_llm_client(self):
         if config.LLM_PROVIDER == "ollama":
@@ -110,99 +120,184 @@ class RAGEngine:
             results.append({"text": chunk["text"], "source": chunk["source"], "score": float(score)})
         return results
 
-    # ---------- generation ----------
+    # ---------- warm-up ----------
 
-    def _call_llm(self, user_question: str, context_block: str) -> str:
+    def warm_up(self):
+        """Load the embedder and the LLM into memory now, so the FIRST student question is fast."""
+        try:
+            self.embedder.encode(["warm up"], normalize_embeddings=True)
+            if config.LLM_PROVIDER == "ollama":
+                self.session.post(
+                    f"{config.OLLAMA_HOST}/api/chat",
+                    json={
+                        "model": config.OLLAMA_MODEL,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "stream": False,
+                        "keep_alive": config.OLLAMA_KEEP_ALIVE,
+                        # must match the real requests, or Ollama reloads the model
+                        "options": {"num_ctx": config.OLLAMA_NUM_CTX, "num_predict": 1},
+                    },
+                    timeout=180,
+                )
+            print("[warm_up] models are loaded and ready.")
+        except Exception as exc:
+            print(f"[warm_up] skipped: {exc}")
+
+    # ---------- generation (streaming) ----------
+
+    def _stream_llm(self, user_question: str, context_block: str):
+        """Yields the answer piece by piece, as the model produces it."""
         user_message = f"CONTEXT:\n{context_block}\n\nSTUDENT QUESTION:\n{user_question}"
 
         if config.LLM_PROVIDER == "ollama":
-            response = requests.post(
-                f"{config.OLLAMA_HOST}/api/chat",
-                json={
-                    "model": config.OLLAMA_MODEL,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_message},
-                    ],
-                                        "stream": False,
-                    "keep_alive": config.OLLAMA_KEEP_ALIVE,
-                    "options": {
-                        "num_ctx": config.OLLAMA_NUM_CTX,
-                        "num_predict": config.OLLAMA_NUM_PREDICT,
-                        "temperature": config.OLLAMA_TEMPERATURE,
-                    },
+            payload = {
+                "model": config.OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                "stream": True,
+                "keep_alive": config.OLLAMA_KEEP_ALIVE,
+                "options": {
+                    "num_ctx": config.OLLAMA_NUM_CTX,
+                    "num_predict": config.OLLAMA_NUM_PREDICT,
+                    "temperature": config.OLLAMA_TEMPERATURE,
                 },
-                timeout=120,
-            )
-            response.raise_for_status()
-            return response.json()["message"]["content"]
+            }
+            with self.session.post(
+                f"{config.OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=(5, 120)
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    piece = data.get("message", {}).get("content", "")
+                    if piece:
+                        yield piece
+                    if data.get("done"):
+                        break
 
         elif config.LLM_PROVIDER == "anthropic":
-            response = self.llm_client.messages.create(
+            with self.llm_client.messages.stream(
                 model=config.ANTHROPIC_MODEL,
-                max_tokens=700,
+                max_tokens=config.OLLAMA_NUM_PREDICT,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
-            )
-            return response.content[0].text
+            ) as stream:
+                for piece in stream.text_stream:
+                    yield piece
 
         else:  # openai
-            response = self.llm_client.chat.completions.create(
+            stream = self.llm_client.chat.completions.create(
                 model=config.OPENAI_MODEL,
-                max_tokens=700,
+                max_tokens=config.OLLAMA_NUM_PREDICT,
+                stream=True,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
             )
-            return response.choices[0].message.content
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
 
-    def answer(self, question: str) -> dict:
+    # ---------- main entry points ----------
+
+    def answer_stream(self, question: str):
+        """
+        Generator of events:
+          {"type": "meta", "source": ..., "matches": [...]}   (once, first)
+          {"type": "token", "text": "..."}                    (many)
+          {"type": "done"}                                    (once, last)
+        """
+        t0 = time.perf_counter()
         key = " ".join(question.lower().split())
-        if key in self._cache:
-            self._cache.move_to_end(key)
-            return self._cache[key]
-        result = self._answer_uncached(question)
-        if result["source"] != "none":
-            self._cache[key] = result
-            if len(self._cache) > config.CACHE_SIZE:
-                self._cache.popitem(last=False)
-        return result
 
-    def _answer_uncached(self, question: str) -> dict:
+        # Repeat question? Answer instantly from memory.
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            cached = self.cache[key]
+            print(f"[timing] cache hit ({time.perf_counter() - t0:.3f}s)")
+            yield {"type": "meta", "source": cached["source"], "matches": cached["matches"]}
+            yield {"type": "token", "text": cached["reply"]}
+            yield {"type": "done"}
+            return
+
+        talk = small_talk(question)
+        if talk:
+            yield {"type": "meta", "source": "", "matches": []}
+            yield {"type": "token", "text": talk}
+            yield {"type": "done"}
+            return
+
         kb_results = self.retrieve(question)
         best_score = kb_results[0]["score"] if kb_results else 0.0
+        print(f"[timing] retrieval {time.perf_counter() - t0:.3f}s (best score {best_score:.2f})")
 
         if best_score >= config.SIMILARITY_THRESHOLD:
+            source = "knowledge_base"
             context_block = "\n\n---\n\n".join(
                 f"(from {r['source']}):\n{r['text']}" for r in kb_results
             )
-            reply = self._call_llm(question, context_block)
-            return {
-                "reply": reply,
-                "source": "knowledge_base",
-                "matches": [{"source": r["source"], "score": round(r["score"], 3)} for r in kb_results],
-            }
-
-        # Knowledge base wasn't confident -> fall back to a live web search
-        web_results = search_web(question)
-        if not web_results:
-            return {
-                "reply": (
+            matches = [{"source": r["source"], "score": round(r["score"], 3)} for r in kb_results]
+        else:
+            t1 = time.perf_counter()
+            web_results = search_web(question)
+            print(f"[timing] web search {time.perf_counter() - t1:.2f}s ({len(web_results)} results)")
+            if not web_results:
+                yield {"type": "meta", "source": "none", "matches": []}
+                yield {"type": "token", "text": (
                     "I couldn't find this in the college knowledge base, and a live web "
                     "search didn't return anything useful either. Could you rephrase the "
                     "question, or check with the college admin/faculty directly for this one?"
-                ),
-                "source": "none",
-                "matches": [],
-            }
+                )}
+                yield {"type": "done"}
+                return
+            source = "web"
+            context_block = "\n\n---\n\n".join(
+                f"(web result: {r['title']} -- {r['url']}):\n{r['snippet']}" for r in web_results
+            )
+            matches = [{"source": r["url"], "title": r["title"]} for r in web_results]
 
-        context_block = "\n\n---\n\n".join(
-            f"(web result: {r['title']} -- {r['url']}):\n{r['snippet']}" for r in web_results
-        )
-        reply = self._call_llm(question, context_block)
+        yield {"type": "meta", "source": source, "matches": matches}
+
+        parts = []
+        first_token_logged = False
+        try:
+            for piece in self._stream_llm(question, context_block):
+                if not first_token_logged:
+                    print(f"[timing] first token at {time.perf_counter() - t0:.2f}s")
+                    first_token_logged = True
+                parts.append(piece)
+                yield {"type": "token", "text": piece}
+        except Exception as exc:
+            print(f"[llm] error: {exc}")
+            yield {"type": "token", "text": "\n\n(Sorry, the language model stopped responding. "
+                                            "Please make sure Ollama is running and try again.)"}
+            yield {"type": "done"}
+            return
+
+        print(f"[timing] total {time.perf_counter() - t0:.2f}s")
+
+        # Remember knowledge-base answers only (web answers can go stale).
+        if source == "knowledge_base" and parts:
+            self.cache[key] = {"reply": "".join(parts), "source": source, "matches": matches}
+            while len(self.cache) > config.CACHE_SIZE:
+                self.cache.popitem(last=False)
+
+        yield {"type": "done"}
+
+    def answer(self, question: str) -> dict:
+        """Non-streaming version (kept so /api/chat still works): collects the stream."""
+        meta, parts = {}, []
+        for event in self.answer_stream(question):
+            if event["type"] == "meta":
+                meta = event
+            elif event["type"] == "token":
+                parts.append(event["text"])
         return {
-            "reply": reply,
-            "source": "web",
-            "matches": [{"source": r["url"], "title": r["title"]} for r in web_results],
+            "reply": "".join(parts),
+            "source": meta.get("source", "none"),
+            "matches": meta.get("matches", []),
         }

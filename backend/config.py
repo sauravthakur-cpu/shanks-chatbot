@@ -36,11 +36,16 @@ TOP_K = int(os.getenv("TOP_K", 3))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", 0.35))
 
 # --- Speed tuning ---
+# How long Ollama keeps the model in RAM after the last question (default is only 5 min).
 OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+# Context window: smaller = less RAM and faster. 2048 is plenty for 3 chunks + a short answer.
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", 2048))
+# Hard cap on answer length (in tokens). Shorter answers finish much sooner.
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", 300))
 OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", 0.2))
+# How many past KB answers to remember (repeat questions return instantly).
 CACHE_SIZE = int(os.getenv("CACHE_SIZE", 64))
+# CPU threads PyTorch may use for embeddings -- keeps the laptop responsive.
 TORCH_THREADS = int(os.getenv("TORCH_THREADS", 2))
 
 # --- Paths ---
@@ -50,7 +55,7 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 
 # --- Web search fallback ---
 WEB_SEARCH_MAX_RESULTS = int(os.getenv("WEB_SEARCH_MAX_RESULTS", 3))
-WEB_SEARCH_TIMEOUT = int(os.getenv("WEB_SEARCH_TIMEOUT", 5))
+WEB_SEARCH_TIMEOUT = int(os.getenv("WEB_SEARCH_TIMEOUT", 5))  # seconds per attempt
 
 # --- Server ---
 HOST = os.getenv("HOST", "127.0.0.1")
