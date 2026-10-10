@@ -83,6 +83,4 @@ def build_index():
     print(f"Done. Index saved to {config.VECTOR_STORE_DIR}")
     print(f"{len(records)} chunks indexed from {len(docs)} source file(s).")
 
-
-if __name__ == "__main__":
-    build_index()
+#comment 

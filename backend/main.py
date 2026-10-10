@@ -84,3 +84,4 @@ def health():
 # Serve the frontend (index.html, style.css, script.js, assets/) directly,
 # so opening http://127.0.0.1:8000 gives you the whole app -- no separate server needed.
 app.mount("/", StaticFiles(directory=str(config.FRONTEND_DIR), html=True), name="frontend")
+#comment 
